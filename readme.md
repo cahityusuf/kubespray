@@ -37,19 +37,14 @@ etcd ansible_host=192.168.56.50  ip=192.168.56.50
 [kube_control_plane]
 controlplane02
 controlplane01
-# node3
 
 [etcd]
 etcd
-# node2
-# node3
+
 
 [kube_node]
 node01
 node02
-# node4
-# node5
-# node6
 
 [calico_rr]
 
