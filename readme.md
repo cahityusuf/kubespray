@@ -27,20 +27,12 @@ inventory.ini => configure edilir
 
 ########inventory.ini########
 
-# ## Configure 'ip' variable to bind kubernetes services on a
-# ## different ip than the default iface
-# ## We should set etcd_member_name for etcd cluster. The node that is not a etcd member do not need to set the value, or can set the empty string value.
 [all]
 controlplane01 ansible_host=192.168.56.11  ip=192.168.56.11
 controlplane02 ansible_host=192.168.56.12  ip=192.168.56.12
 node01 ansible_host=192.168.56.21  ip=192.168.56.21
 node02 ansible_host=192.168.56.22  ip=192.168.56.22
 etcd ansible_host=192.168.56.50  ip=192.168.56.50
-# node6 ansible_host=95.54.0.17  # ip=10.3.0.6 etcd_member_name=etcd6
-
-# ## configure a bastion host if your nodes are not directly reachable
-# [bastion]
-# bastion ansible_host=x.x.x.x ansible_user=some_user
 
 [kube_control_plane]
 controlplane02
