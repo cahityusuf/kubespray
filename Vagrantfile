@@ -7,7 +7,7 @@ RAM_SIZE = 16
 
 # Define how mnay CPU cores you have.
 # More powerful workers will be created if you have more
-CPU_CORES = 8
+CPU_CORES = 12
 
 # Internal network prefix for the VM network
 # See the documentation before changing this
@@ -23,17 +23,17 @@ RESOURCES = {
   "control" => {
     1 => {
       # controlplane01 bigger since it may run e2e tests.
-      "ram" => [ram_selector * 128, 4096].max(),
-      "cpu" => CPU_CORES >= 12 ? 4 : 2,
+      "ram" => [ram_selector * 128, 8192].max(),
+      "cpu" => CPU_CORES >= 12 ? 4 : 4,
     },
     2 => {
       # All additional masters get this
-      "ram" => [ram_selector * 128, 4096].min(),
-      "cpu" => CPU_CORES > 8 ? 2 : 1,
+      "ram" => [ram_selector * 128, 8192].min(),
+      "cpu" => CPU_CORES > 8 ? 4 : 4,
     },
   },
   "worker" => {
-    "ram" => [ram_selector * 128, 4096].min(),
+    "ram" => [ram_selector * 128, 8192].min(),
     "cpu" => (((CPU_CORES / 4) * 4) - 4) / 4,
   },
 }
@@ -61,8 +61,8 @@ def provision_kubernetes_node(node)
 end
 
 # Define the number of master and worker nodes. You should not change this
-NUM_CONTROL_NODES = 2
-NUM_WORKER_NODE = 2
+NUM_CONTROL_NODES = 3
+NUM_WORKER_NODE = 1
 
 # Host address start points
 MASTER_IP_START = 10
@@ -83,7 +83,7 @@ Vagrant.configure("2") do |config|
   # Every Vagrant development environment requires a box. You can search for
   # boxes at https://vagrantcloud.com/search.
   # config.vm.box = "base"
-  config.vm.box = "ubuntu/jammy64"
+  config.vm.box = "generic/ubuntu2204"
   config.vm.boot_timeout = 900
 
   # Disable automatic box update checking. If you disable this, then
@@ -93,81 +93,66 @@ Vagrant.configure("2") do |config|
 
   # Provision Control Nodes
   (1..NUM_CONTROL_NODES).each do |i|
-    config.vm.define "controlplane-kubespray-0#{i}" do |node|
+    config.vm.define "controlplane-#{i}" do |node|
       # Name shown in the GUI
       node.vm.provider "virtualbox" do |vb|
-        vb.name = "kubernetes-kubespray-controlplane-#{i}"
-        vb.memory = RESOURCES["control"][i > 2 ? 2 : i]["ram"]
-        vb.cpus = RESOURCES["control"][i > 2 ? 2 : i]["cpu"]
+        vb.name = "controlplane-#{i}"
+        vb.memory = 8192
+        vb.cpus = 2
       end
-      node.vm.hostname = "controlplane-kubespray-0#{i}"
+      node.vm.hostname = "controlplane-#{i}"
       node.vm.network :private_network, ip: IP_NW + "#{MASTER_IP_START + i}"
       node.vm.network "forwarded_port", guest: 22, host: "#{2710 + i}"
       provision_kubernetes_node node
       if i == 1
         # Install (opinionated) configs for vim and tmux on controlplane01. These used by the author for CKA exam.
-        node.vm.provision "file", source: "./ubuntu/tmux.conf", destination: "$HOME/.tmux.conf"
-        node.vm.provision "file", source: "./ubuntu/vimrc", destination: "$HOME/.vimrc"
-        node.vm.provision "file", source: "./tools/approve-csr.sh", destination: "$HOME/approve-csr.sh"
+        #node.vm.provision "file", source: "./ubuntu/tmux.conf", destination: "$HOME/.tmux.conf"
+        #node.vm.provision "file", source: "./ubuntu/vimrc", destination: "$HOME/.vimrc"
+        #node.vm.provision "file", source: "./tools/approve-csr.sh", destination: "$HOME/approve-csr.sh"
       end
     end
   end
 
-  # Provision Load Balancer Node
-  config.vm.define "loadbalancer-kubespray" do |node|
-    node.vm.provider "virtualbox" do |vb|
-      vb.name = "kubernetes-kubespray-lb"
-      vb.memory = 512
-      vb.cpus = 1
-    end
-    node.vm.hostname = "loadbalancer-kubespray"
-    node.vm.network :private_network, ip: IP_NW + "#{LB_IP_START}"
-    node.vm.network "forwarded_port", guest: 22, host: 2730
-    # Set up ssh
-    node.vm.provision "setup-ssh", :type => "shell", :path => "ubuntu/ssh.sh"
-    setup_dns node
-  end
+  # # Provision Load Balancer Node
+  # config.vm.define "loadbalancer-kubespray" do |node|
+  #   node.vm.provider "virtualbox" do |vb|
+  #     vb.name = "kubernetes-kubespray-lb"
+  #     vb.memory = 512
+  #     vb.cpus = 1
+  #   end
+  #   node.vm.hostname = "loadbalancer-kubespray"
+  #   node.vm.network :private_network, ip: IP_NW + "#{LB_IP_START}"
+  #   node.vm.network "forwarded_port", guest: 22, host: 2730
+  #   # Set up ssh
+  #   node.vm.provision "setup-ssh", :type => "shell", :path => "ubuntu/ssh.sh"
+  #   setup_dns node
+  # end
 
 
     # Provision kubespray Node
-    config.vm.define "kubespray" do |node|
-      node.vm.provider "virtualbox" do |vb|
-        vb.name = "kubespray"
-        vb.memory = 4096
-        vb.cpus = 1
-      end
-      node.vm.hostname = "kubespray"
-      node.vm.network :private_network, ip: IP_NW + "#{KUBESPRAY_IP_START}"
-      node.vm.network "forwarded_port", guest: 22, host: 2740
-      # Set up ssh
-      node.vm.provision "setup-ssh", :type => "shell", :path => "ubuntu/ssh.sh"
-      setup_dns node
-    end
-
-        # Provision etcd Node
-    config.vm.define "etcd" do |node|
-      node.vm.provider "virtualbox" do |vb|
-        vb.name = "etcd"
-        vb.memory = 4096
-        vb.cpus = 1
-      end
-      node.vm.hostname = "etcd"
-      node.vm.network :private_network, ip: IP_NW + "#{ETCD_IP_START}"
-      node.vm.network "forwarded_port", guest: 22, host: 2750
-      # Set up ssh
-      node.vm.provision "setup-ssh", :type => "shell", :path => "ubuntu/ssh.sh"
-      setup_dns node
-    end
+    # config.vm.define "kubespray" do |node|
+    #   node.vm.provider "virtualbox" do |vb|
+    #     vb.name = "kubespray"
+    #     vb.memory = 4096
+    #     vb.cpus = 1
+    #   end
+    #   node.vm.hostname = "kubespray"
+    #   node.vm.network :private_network, ip: IP_NW + "#{KUBESPRAY_IP_START}"
+    #   node.vm.network "forwarded_port", guest: 22, host: 2740
+    #   # Set up ssh
+    #   node.vm.provision "setup-ssh", :type => "shell", :path => "ubuntu/ssh.sh"
+    #   setup_dns node
+    # end
 
   # Provision Worker Nodes
   (1..NUM_WORKER_NODE).each do |i|
-    config.vm.define "node-kubespray-0#{i}" do |node|
+    config.vm.define "node-#{i}" do |node|
       node.vm.provider "virtualbox" do |vb|
-        vb.name = "kubernetes-kubespray-node-#{i}"
-        vb.memory = RESOURCES["worker"]["ram"]
-        vb.cpus = RESOURCES["worker"]["cpu"]
+        vb.name = "node-#{i}"
+        vb.memory = 8192
+        vb.cpus = 2
       end
-      node.vm.hostname = "node-kubespray-0#{i}"
+      node.vm.hostname = "node-#{i}"
       node.vm.network :private_network, ip: IP_NW + "#{NODE_IP_START + i}"
       node.vm.network "forwarded_port", guest: 22, host: "#{2720 + i}"
       provision_kubernetes_node node
